@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sharjah Prayer Times</title>
+  <link href="https://fonts.googleapis.com/css2?family=Reem+Kufi&family=Roboto&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: radial-gradient(circle at top, #0b3b2e 0, #02110d 55%, #000 100%);
+      color: #f9f9f9;
+      text-align: center;
+      padding: 20px;
+    }
+    .card {
+      max-width: 420px;
+      margin: 0 auto;
+      background: rgba(5, 35, 26, 0.95);
+      border-radius: 16px;
+      padding: 20px 20px 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255, 215, 0, 0.35);
+    }
+    h1 {
+      font-family: 'Reem Kufi', sans-serif;
+      margin: 0 0 6px;
+      font-size: 26px;
+      color: #f7f3d7;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #d2cfa5;
+      margin-bottom: 14px;
+    }
+    .hijri {
+      font-size: 13px;
+      color: #f1e6b2;
+      margin-bottom: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      background: rgba(0,0,0,0.15);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 15px;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    td:first-child {
+      text-align: left;
+      color: #f7f3d7;
+    }
+    td:last-child {
+      text-align: right;
+      color: #ffe27a;
+      font-weight: 500;
+    }
+    .next-prayer {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #145c3f, #1f7a52);
+      border: 1px solid rgba(255, 215, 0, 0.5);
+      font-size: 14px;
+    }
+    .next-prayer-title {
+      font-weight: 600;
+      color: #fff7c9;
+    }
+    .next-prayer-name {
+      color: #ffe27a;
+      font-weight: 600;
+    }
+    .countdown {
+      margin-top: 4px;
+      font-family: 'Reem Kufi', sans-serif;
+      letter-spacing: 1px;
+      color: #fdf5cf;
+    }
+    .footer {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #b9b9b9;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Sharjah Prayer Times</h1>
+  <div class="subtitle">Based on Aladhan.com · Local time</div>
+  <div class="hijri" id="hijri-date"></div>
+
+  <table>
+    <tr><td>Fajr</td><td id="fajr"></td></tr>
+    <tr><td>Sunrise</td><td id="sunrise"></td></tr>
+    <tr><td>Dhuhr</td><td id="dhuhr"></td></tr>
+    <tr><td>Asr</td><td id="asr"></td></tr>
+    <tr><td>Maghrib</td><td id="maghrib"></td></tr>
+    <tr><td>Isha</td><td id="isha"></td></tr>
+  </table>
+
+  <div class="next-prayer">
+    <div class="next-prayer-title">
+      Upcoming Prayer: <span class="next-prayer-name" id="next-prayer-name">—</span>
+    </div>
+    <div class="countdown" id="countdown">--:--:--</div>
+  </div>
+
+  <div class="footer">
+    Auto-refreshes every minute · Times from Aladhan API
+  </div>
+</div>
+
+<script>
+  const API_URL = "https://api.aladhan.com/v1/timingsByCity?city=Sharjah&country=UAE";
+
+  function toTodayTime(timeStr) {
+    const [h, m] = timeStr.split(":").map(Number);
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+    return d;
+  }
+
+  function getNextPrayer(timings) {
+    const order = ["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"];
+    const now = new Date();
+    let nextName = null;
+    let nextTime = null;
+
+    for (const name of order) {
+      const t = toTodayTime(timings[name]);
+      if (t > now) {
+        nextName = name;
+        nextTime = t;
+        break;
+      }
+    }
+
+    // If all passed, next is tomorrow's Fajr
+    if (!nextName) {
+      nextName = "Fajr";
+      nextTime = toTodayTime(timings["Fajr"]);
+      nextTime.setDate(nextTime.getDate() + 1);
+    }
+
+    return { name: nextName, time: nextTime };
+  }
+
+  let countdownTarget = null;
+
+  function updateCountdown() {
+    if (!countdownTarget) return;
+    const now = new Date();
+    let diff = Math.floor((countdownTarget - now) / 1000);
+    if (diff < 0) diff = 0;
+
+    const h = String(Math.floor(diff / 3600)).padStart(2, "0");
+    const m = String(Math.floor((diff % 3600) / 60)).padStart(2, "0");
+    const s = String(diff % 60).padStart(2, "0");
+
+    document.getElementById("countdown").textContent = `${h}:${m}:${s}`;
+  }
+
+  function loadTimings() {
+    fetch(API_URL)
+      .then(r => r.json())
+      .then(data => {
+        const t = data.data.timings;
+        const dateInfo = data.data.date;
+
+        // Fill times
+        document.getElementById("fajr").textContent = t.Fajr;
+        document.getElementById("sunrise").textContent = t.Sunrise;
+        document.getElementById("dhuhr").textContent = t.Dhuhr;
+        document.getElementById("asr").textContent = t.Asr;
+        document.getElementById("maghrib").textContent = t.Maghrib;
+        document.getElementById("isha").textContent = t.Isha;
+
+        // Hijri date
+        const hijri = dateInfo.hijri;
+        const hijriStr = `${hijri.day} ${hijri.month.en} ${hijri.year} AH`;
+        document.getElementById("hijri-date").textContent = hijriStr;
+
+        // Next prayer + countdown
+        const next = getNextPrayer(t);
+        document.getElementById("next-prayer-name").textContent = next.name;
+        countdownTarget = next.time;
+      })
+      .catch(err => {
+        console.error(err);
+        document.getElementById("hijri-date").textContent = "Error loading timings";
+      });
+  }
+
+  // Initial load
+  loadTimings();
+
+  // Auto-refresh every minute
+  setInterval(loadTimings, 60 * 1000);
+
+  // Countdown tick every second
+  setInterval(updateCountdown, 1000);
+</script>
+
+</body>
+</html>
